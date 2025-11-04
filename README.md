@@ -1,6 +1,6 @@
 # Zabbix Template for Hikvision NVR (SNMP)
 
-This is a clean, working Zabbix 6.0 template for monitoring Hikvision NVR devices (like the DS-9632NI-I8 series) via SNMPv2.
+This is a clean, working Zabbix 6.0 template for monitoring Hikvision NVR devices via SNMP. It was tested on a **DS-9632NI-I8** but may work for other models that report storage as a single logical pool.
 
 It monitors key system health metrics and, most importantly, the status of the main logical storage pool. All items include descriptions for clarity.
 
@@ -8,10 +8,7 @@ It monitors key system health metrics and, most importantly, the status of the m
 
 This screenshot shows all 11 items correctly populated with data and no errors:
 
-![Zabbix Items for Hikvision NVR]
-
-
-hikvisionzabbixtemplateitem.jpg
+![Zabbix Items for Hikvision NVR](https://raw.githubusercontent.com/DualStackAdmin/zabbix-hikvision-nvr-template/main/hikvisionzabbixtemplateitem.jpg)
 
 ## Monitored Items (11 Items)
 
@@ -52,7 +49,7 @@ Instead, the NVR combines all physical disks (e.g., 8 disks) into a single **Sto
 
 ## Installation
 
-1.  **Import:** Import this `template_hikvision_nvr.yaml` file into your Zabbix 6.0 installation (`Data collection` > `Templates` > `Import`).
+1.  **Import:** Download the `template_hikvision_nvr.yaml` file from this repository. Import it into your Zabbix 6.0 installation (`Data collection` > `Templates` > `Import`).
 2.  **Add Host:** Add your NVR as a new host.
 3.  **Link Template:** Link the new `Template Hikvision NVR` to this host.
 4.  **Configure SNMP:** On the host's `Interfaces` tab, add an SNMP interface with your NVR's IP address.
