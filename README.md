@@ -11,7 +11,7 @@ This screenshot shows all 11 items correctly populated with data and no errors:
 ![Zabbix Items for Hikvision NVR]
 
 
-*(Note: You must upload your `image_753e1f.png` file to the GitHub repository for this image to appear)*
+hikvisionzabbixtemplateitem.jpg
 
 ## Monitored Items (11 Items)
 
