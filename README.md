@@ -1,82 +1,70 @@
-# Hikvision NVR Hybrid Monitoring Template (Zabbix 7.4+)
+# Template Hikvision NVR (SNMP + API + RTSP) by TurkO
 
-This repository contains a comprehensive Zabbix template designed to provide robust monitoring for Hikvision NVR systems (tested on a model reporting a single logical storage pool).
-
-The solution uses a **Hybrid Method**, combining SNMP, HTTP API, and a custom External Check to solve the critical issue of unreliable recording status.
+This repository contains a comprehensive Zabbix template designed to provide robust monitoring for Hikvision NVR systems. The solution uses a **Hybrid Method**, combining SNMP, HTTP API, and a custom External Check (RTSP Stream Verification) to detect genuine video loss.
 
 ## ✨ Key Features
 
-- **True Video Loss Detection (RTSP Integrity Check):** Bypasses the NVR's standard API limitations ("Device Busy" errors) by checking the actual video stream flow via RTSP.
-- **Granular Status:** Monitors per-camera stream integrity (Recording Check) versus simple API connection status.
-- **Full System Health (SNMP):** Tracks vital hardware metrics (CPU, RAM, Uptime).
-- **Storage Pool Monitoring:** Reliably monitors the health of the NVR's aggregated Logical Storage Pool (e.g., Drive #1).
-- **Template Version:** Zabbix 7.4.x (fully compatible with modern Zabbix features).
+- **True Video Loss Detection (RTSP Integrity Check):** Bypasses the NVR's API limitations by checking the actual video stream flow via a custom script.
+- **Granular Status:** Monitors per-camera stream integrity (Recording Check).
+- **Full System Health:** Tracks CPU, RAM, and per-disk health/status.
 
 ## 🛠️ Installation and Setup Guide
 
-### Phase 1: Server Preparation (External Script Setup)
+This guide assumes your Zabbix Server/Proxy is running on a Linux distribution (e.g., Ubuntu).
 
-The solution requires a custom script on the Zabbix server to perform the video stream analysis.
+### Step 1: Server Preparation (External Script)
 
-1.  **Install Dependencies:**
-    Install the necessary media analysis tool (`ffprobe`):
+The core functionality relies on the `rtsp_check.sh` script (found in the `externalscripts/` directory).
+
+1. **Install Dependencies:**
+   Install the necessary media analysis tool (`ffprobe`) on your Zabbix Server or Proxy:
+   ```bash
+   sudo apt update
+   sudo apt install ffmpeg # ffprobe is included here
+````
+
+2.  **Deploy the Script:**
+    Copy the content of the `externalscripts/rtsp_check.sh` file into the Zabbix external scripts directory:
+
     ```bash
-    sudo apt update
-    sudo apt install ffmpeg # ffprobe is included here
-    ```
-
-2.  **Create the RTSP Check Script (rtsp_check.sh):**
-    Create the file in Zabbix's external scripts directory (e.g., `/usr/lib/zabbix/externalscripts/`).
-
-    *File: `externalscripts/rtsp_check.sh`*
-
-    ```bash
-    #!/bin/bash
-    # Zabbix External Check Script (Robust/Content Check Version)
-
-    IP=$1
-    USER=$2
-    PASS=$3
-    CHANNEL=$4
-    STREAM_ID="${CHANNEL}01"
-
-    # Capture ffprobe output over 5s timeout. We check output content, ignoring exit codes caused by minor HEVC stream errors.
-    OUTPUT=$(timeout 5s ffprobe -v warning -rtsp_transport tcp -i "rtsp://$USER:$PASS@$IP:554/Streaming/Channels/$STREAM_ID" -t 2 -f null - 2>&1)
-
-    # Check for keywords that indicate a valid video stream is flowing.
-    if echo "$OUTPUT" | grep -q -E "Stream #|Video:|Audio:|hevc|h264"; then
-      echo 1 # Success (Stream content detected)
-    else
-      echo 0 # Failure (No stream data/connection refused)
-    fi
+    sudo cp externalscripts/rtsp_check.sh /usr/lib/zabbix/externalscripts/
     ```
 
 3.  **Set Permissions:**
+    Ensure the script is executable and owned by the Zabbix user:
+
     ```bash
     sudo chmod +x /usr/lib/zabbix/externalscripts/rtsp_check.sh
     sudo chown zabbix:zabbix /usr/lib/zabbix/externalscripts/rtsp_check.sh
     ```
 
-### Phase 2: Zabbix Template Configuration
+### Step 2: Zabbix Template Import & Macros
 
-1.  **Import Template:** Import the provided YAML file (`templates/template_hikvision_hybrid.yaml`) into your Zabbix Frontend.
+1.  **Import Template:**
+    Import the provided YAML file: `templates/template_hikvision_hybrid.yaml` into your Zabbix Frontend.
 
-2.  **Configure Host Macros:** On the target NVR Host, define the following variables under the **Macros** tab. These are crucial for the script and API connection:
+2.  **Configure Host Macros:**
+    Attach the template to your NVR Host and define the following critical variables under the **Macros** tab:
 
-| Macro Name | Value (Example) | Protocol Used |
-| :--- | :--- | :--- |
-| `{$SNMP_COMMUNITY}` | `hikvision-zabbix` | SNMP Monitoring |
-| `{$HIKVISION.API.USER}` | `admin` | HTTP API & RTSP Script |
-| `{$HIKVISION.API.PASSWORD}` | `[YOUR SECURE PASSWORD]` | HTTP API & RTSP Script (Sensitive) |
+    | Macro Name                  | Example Value | Description |
+    | :-------------------------- | :--------------------------------------------- | :---------- |
+    | `{$SNMP_COMMUNITY}`         | [YOUR SNMP COMMUNITY STRING]                   | SNMP Community String |
+    | `{$HIKVISION.API.USER}`     | [API USERNAME, e.g., admin]                    | NVR API Username |
+    | `{$HIKVISION.API.PASSWORD}` | [YOUR SECURE PASSWORD]                         | NVR API Password (Sensitive) |
 
-### Phase 3: Deployment and Verification
+### Step 3: Verification and Deployment
 
-1.  **Attach Template:** Link the `Template Hikvision NVR Hybrid` to your NVR Host.
+1.  **Attach Template:** Link the **`Template Hikvision NVR (SNMP + API + RTSP) by TurkO`** to your NVR Host.
+
 2.  **Force Discovery:** To ensure all cameras and items are created immediately:
-    - Navigate to the Host's **Discovery Rules**.
-    - Select the **'Camera Discovery'** rule.
-    - Click **Execute Now**.
+
+      - Navigate to the Host's **Discovery Rules**.
+      - Select the **'Camera Discovery'** rule.
+      - Click **Execute Now**.
 
 ## 🖼️ Verification
 
-Check **Monitoring > Latest Data**. If the system is working, the item `Camera X Stream Status (RTSP)` should show a value of **1 (Online)**, confirming **Data Plane Integrity** and successful recording for that channel.
+Check **Monitoring \> Latest Data**. The item \<code\>Camera X Stream Status (RTSP)\</code\> should show \<code\>1\</code\> if the camera is actively recording, confirming **Data Plane Integrity**.
+
+```
+```
