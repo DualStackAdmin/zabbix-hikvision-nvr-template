@@ -58,7 +58,7 @@ The primary functionality relies on the `rtsp_check.sh` script, which uses `ffpr
 
 ### Step 2: Zabbix Template Import & Macros
 
-1.  **Import Template:** Import the provided YAML file (`templates/template_hikvision_hybrid.yaml`) into your Zabbix Frontend.
+1.  **Import Template:** Import the provided YAML file (`Hikvision NVR (SNMP + API + RTSP) by TurkO.yaml`) into your Zabbix Frontend.
 
 2.  **Configure Host Macros:** On the target NVR Host, define the following critical variables under the **Macros** tab:
 
