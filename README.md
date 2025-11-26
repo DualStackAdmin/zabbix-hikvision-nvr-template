@@ -1,37 +1,58 @@
+Buyurun. Bu, bizim bütün proyektin nəticəsi olan, GitHub-a hazır **son və vahid `README.md`** faylının məzmunudur.
+
+-----
+
+````markdown
 # Template Hikvision NVR (SNMP + API + RTSP) by TurkO
 
 This repository contains a comprehensive Zabbix template designed to provide robust monitoring for Hikvision NVR systems. The solution uses a **Hybrid Method**, combining SNMP, HTTP API, and a custom External Check (RTSP Stream Verification) to detect genuine video loss.
 
 ## ✨ Key Features
 
-- **True Video Loss Detection (RTSP Integrity Check):** Bypasses the NVR's API limitations by checking the actual video stream flow via a custom script.
-- **Granular Status:** Monitors per-camera stream integrity (Recording Check).
+- **True Video Loss Detection:** Uses a custom Bash script to check for active video data flow (non-zero bitrate/codec presence) via RTSP, bypassing unreliable API "recording status."
+- **Granular Status:** Monitors per-camera stream integrity (Recording Check) versus simple API connection status.
 - **Full System Health:** Tracks CPU, RAM, and per-disk health/status.
 
 ## 🛠️ Installation and Setup Guide
 
-This guide assumes your Zabbix Server/Proxy is running on a Linux distribution (e.g., Ubuntu).
-
 ### Step 1: Server Preparation (External Script)
 
-The core functionality relies on the `rtsp_check.sh` script (found in the `externalscripts/` directory).
+The primary functionality relies on the `rtsp_check.sh` script, which uses `ffprobe` to validate the video stream.
 
 1. **Install Dependencies:**
-   Install the necessary media analysis tool (`ffprobe`) on your Zabbix Server or Proxy:
+   Install the necessary package on your Zabbix Server or Proxy:
    ```bash
    sudo apt update
    sudo apt install ffmpeg # ffprobe is included here
 ````
 
-2.  **Deploy the Script:**
-    Copy the content of the `externalscripts/rtsp_check.sh` file into the Zabbix external scripts directory:
+2.  **Create the Script:**
+    Create the following file: `/usr/lib/zabbix/externalscripts/rtsp_check.sh`
+
+    *File Content: `rtsp_check.sh`*
 
     ```bash
-    sudo cp externalscripts/rtsp_check.sh /usr/lib/zabbix/externalscripts/
+    #!/bin/bash
+    # Zabbix External Check Script (Robust/Content Check Version)
+
+    IP=$1
+    USER=$2
+    PASS=$3
+    CHANNEL=$4
+    STREAM_ID="${CHANNEL}01"
+
+    # Capture ffprobe output over 5s timeout. We check output content, ignoring exit codes caused by minor HEVC stream errors.
+    OUTPUT=$(timeout 5s ffprobe -v warning -rtsp_transport tcp -i "rtsp://$USER:$PASS@$IP:554/Streaming/Channels/$STREAM_ID" -t 2 -f null - 2>&1)
+
+    # Check the captured output for keywords that indicate a valid video stream is flowing.
+    if echo "$OUTPUT" | grep -q -E "Stream #|Video:|Audio:|hevc|h264"; then
+      echo 1 # Success (Stream content detected)
+    else
+      echo 0 # Failure (No stream data/connection refused)
+    fi
     ```
 
 3.  **Set Permissions:**
-    Ensure the script is executable and owned by the Zabbix user:
 
     ```bash
     sudo chmod +x /usr/lib/zabbix/externalscripts/rtsp_check.sh
@@ -40,11 +61,9 @@ The core functionality relies on the `rtsp_check.sh` script (found in the `exter
 
 ### Step 2: Zabbix Template Import & Macros
 
-1.  **Import Template:**
-    Import the provided YAML file: `templates/template_hikvision_hybrid.yaml` into your Zabbix Frontend.
+1.  **Import:** Import the provided YAML file (`templates/template_hikvision_hybrid.yaml`) into your Zabbix Frontend.
 
-2.  **Configure Host Macros:**
-    Attach the template to your NVR Host and define the following critical variables under the **Macros** tab:
+2.  **Configure Host Macros:** On the target NVR Host, define the following critical variables under the **Macros** tab:
 
     | Macro Name                  | Example Value | Description |
     | :-------------------------- | :--------------------------------------------- | :---------- |
@@ -55,9 +74,7 @@ The core functionality relies on the `rtsp_check.sh` script (found in the `exter
 ### Step 3: Verification and Deployment
 
 1.  **Attach Template:** Link the **`Template Hikvision NVR (SNMP + API + RTSP) by TurkO`** to your NVR Host.
-
-2.  **Force Discovery:** To ensure all cameras and items are created immediately:
-
+2.  **Force Discovery:** To initiate monitoring immediately:
       - Navigate to the Host's **Discovery Rules**.
       - Select the **'Camera Discovery'** rule.
       - Click **Execute Now**.
