@@ -1,5 +1,3 @@
-Buyurun. Bu, bizim bütün proyektin nəticəsi olan, GitHub-a hazır **son və vahid `README.md`** faylının məzmunudur.
-
 -----
 
 ````markdown
@@ -26,10 +24,10 @@ The primary functionality relies on the `rtsp_check.sh` script, which uses `ffpr
    sudo apt install ffmpeg # ffprobe is included here
 ````
 
-2.  **Create the Script:**
-    Create the following file: `/usr/lib/zabbix/externalscripts/rtsp_check.sh`
+2.  **Create and Populate the Script:**
+    Create the script file at the Zabbix external scripts directory: `/usr/lib/zabbix/externalscripts/rtsp_check.sh`.
 
-    *File Content: `rtsp_check.sh`*
+    *Copy and paste the following content into the file:*
 
     ```bash
     #!/bin/bash
@@ -53,6 +51,7 @@ The primary functionality relies on the `rtsp_check.sh` script, which uses `ffpr
     ```
 
 3.  **Set Permissions:**
+    Ensure the script is executable and owned by the Zabbix user:
 
     ```bash
     sudo chmod +x /usr/lib/zabbix/externalscripts/rtsp_check.sh
@@ -61,7 +60,7 @@ The primary functionality relies on the `rtsp_check.sh` script, which uses `ffpr
 
 ### Step 2: Zabbix Template Import & Macros
 
-1.  **Import:** Import the provided YAML file (`templates/template_hikvision_hybrid.yaml`) into your Zabbix Frontend.
+1.  **Import Template:** Import the provided YAML file (`templates/template_hikvision_hybrid.yaml`) into your Zabbix Frontend.
 
 2.  **Configure Host Macros:** On the target NVR Host, define the following critical variables under the **Macros** tab:
 
