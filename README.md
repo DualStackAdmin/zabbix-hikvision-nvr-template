@@ -1,5 +1,3 @@
------
-
 ````markdown
 # Template Hikvision NVR (SNMP + API + RTSP) by TurkO
 
