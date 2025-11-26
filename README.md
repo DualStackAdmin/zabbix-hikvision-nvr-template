@@ -1,58 +1,82 @@
-# Zabbix Template for Hikvision NVR (SNMP)
+# Hikvision NVR Hybrid Monitoring Template (Zabbix 7.4+)
 
-This is a clean, working Zabbix 6.0 template for monitoring Hikvision NVR devices via SNMP. It was tested on a **DS-9632NI-I8** but may work for other models that report storage as a single logical pool.
+This repository contains a comprehensive Zabbix template designed to provide robust monitoring for Hikvision NVR systems (tested on a model reporting a single logical storage pool).
 
-It monitors key system health metrics and, most importantly, the status of the main logical storage pool. All items include descriptions for clarity.
+The solution uses a **Hybrid Method**, combining SNMP, HTTP API, and a custom External Check to solve the critical issue of unreliable recording status.
 
-## Screenshot (Working Example)
+## ✨ Key Features
 
-This screenshot shows all 11 items correctly populated with data and no errors:
+- **True Video Loss Detection (RTSP Integrity Check):** Bypasses the NVR's standard API limitations ("Device Busy" errors) by checking the actual video stream flow via RTSP.
+- **Granular Status:** Monitors per-camera stream integrity (Recording Check) versus simple API connection status.
+- **Full System Health (SNMP):** Tracks vital hardware metrics (CPU, RAM, Uptime).
+- **Storage Pool Monitoring:** Reliably monitors the health of the NVR's aggregated Logical Storage Pool (e.g., Drive #1).
+- **Template Version:** Zabbix 7.4.x (fully compatible with modern Zabbix features).
 
-![Zabbix Items for Hikvision NVR](https://raw.githubusercontent.com/DualStackAdmin/zabbix-hikvision-nvr-template/main/hikvisionzabbixtemplateitem.jpg)
+## 🛠️ Installation and Setup Guide
 
-## Monitored Items (11 Items)
+### Phase 1: Server Preparation (External Script Setup)
 
-This template automatically discovers and monitors the following:
+The solution requires a custom script on the Zabbix server to perform the video stream analysis.
 
-### General
-* `Device model`: The NVR's model identifier.
-* `Device uptime`: Time since the last reboot.
-* `Online status`: A simple check if the device is reachable via SNMP.
-* `Status`: An alternative operational status check.
+1.  **Install Dependencies:**
+    Install the necessary media analysis tool (`ffprobe`):
+    ```bash
+    sudo apt update
+    sudo apt install ffmpeg # ffprobe is included here
+    ```
 
-### System Resources
-* `CPU Frequency`: The clock speed of the NVR's processor.
-* `Total RAM`: Total installed memory.
-* `Memory Usage`: The percentage of RAM currently in use.
+2.  **Create the RTSP Check Script (rtsp_check.sh):**
+    Create the file in Zabbix's external scripts directory (e.g., `/usr/lib/zabbix/externalscripts/`).
 
-### Storage (Logical Pool)
-* `Installed HDD count`: The number of *logical* disk pools reported by SNMP.
-* `HDD free space Drive #1`: Free space on the logical volume.
-* `HDD total space Drive #1`: Total space on the logical volume (e.g., 56.01 Tb).
-* `HDD Status Drive #1`: **(Most Critical)** The health status of the logical volume.
+    *File: `externalscripts/rtsp_check.sh`*
 
----
+    ```bash
+    #!/bin/bash
+    # Zabbix External Check Script (Robust/Content Check Version)
 
-## !! IMPORTANT: Note on Disk Monitoring
+    IP=$1
+    USER=$2
+    PASS=$3
+    CHANNEL=$4
+    STREAM_ID="${CHANNEL}01"
 
-This template was developed specifically for NVR models (like the DS-9632NI-I8) that **do not** expose individual physical disks via SNMP.
+    # Capture ffprobe output over 5s timeout. We check output content, ignoring exit codes caused by minor HEVC stream errors.
+    OUTPUT=$(timeout 5s ffprobe -v warning -rtsp_transport tcp -i "rtsp://$USER:$PASS@$IP:554/Streaming/Channels/$STREAM_ID" -t 2 -f null - 2>&1)
 
-Instead, the NVR combines all physical disks (e.g., 8 disks) into a single **Storage Pool (Logical Volume)** and reports this single pool to Zabbix/SNMP as `Drive #1` (as seen in the screenshot).
+    # Check for keywords that indicate a valid video stream is flowing.
+    if echo "$OUTPUT" | grep -q -E "Stream #|Video:|Audio:|hevc|h264"; then
+      echo 1 # Success (Stream content detected)
+    else
+      echo 0 # Failure (No stream data/connection refused)
+    fi
+    ```
 
-**What this means:**
-* You will **not** see 8 individual disks in Zabbix.
-* You will see **one** logical disk (e.g., "HDD Status Drive #1") representing the health of the entire storage pool.
-* The trigger is configured to alert you if this *entire pool's* status changes from "Normal (0)" to any error state (e.g., "Abnormal (2)", "Smartfailed (3)").
-* If you receive this alert, you must log in to the NVR's web interface to identify which specific *physical* disk has failed.
+3.  **Set Permissions:**
+    ```bash
+    sudo chmod +x /usr/lib/zabbix/externalscripts/rtsp_check.sh
+    sudo chown zabbix:zabbix /usr/lib/zabbix/externalscripts/rtsp_check.sh
+    ```
 
----
+### Phase 2: Zabbix Template Configuration
 
-## Installation
+1.  **Import Template:** Import the provided YAML file (`templates/template_hikvision_hybrid.yaml`) into your Zabbix Frontend.
 
-1.  **Import:** Download the `template_hikvision_nvr.yaml` file from this repository. Import it into your Zabbix 6.0 installation (`Data collection` > `Templates` > `Import`).
-2.  **Add Host:** Add your NVR as a new host.
-3.  **Link Template:** Link the new `Template Hikvision NVR` to this host.
-4.  **Configure SNMP:** On the host's `Interfaces` tab, add an SNMP interface with your NVR's IP address.
-5.  **Set Macro:** Go to the host's `Macros` tab and set the `{$SNMP_COMMUNITY}` macro to your device's SNMP read community string (e.g., `hikvision-zabbix`).
+2.  **Configure Host Macros:** On the target NVR Host, define the following variables under the **Macros** tab. These are crucial for the script and API connection:
 
-After a few minutes, the 11 items should start populating with data, as shown in the screenshot.
+| Macro Name | Value (Example) | Protocol Used |
+| :--- | :--- | :--- |
+| `{$SNMP_COMMUNITY}` | `hikvision-zabbix` | SNMP Monitoring |
+| `{$HIKVISION.API.USER}` | `admin` | HTTP API & RTSP Script |
+| `{$HIKVISION.API.PASSWORD}` | `[YOUR SECURE PASSWORD]` | HTTP API & RTSP Script (Sensitive) |
+
+### Phase 3: Deployment and Verification
+
+1.  **Attach Template:** Link the `Template Hikvision NVR Hybrid` to your NVR Host.
+2.  **Force Discovery:** To ensure all cameras and items are created immediately:
+    - Navigate to the Host's **Discovery Rules**.
+    - Select the **'Camera Discovery'** rule.
+    - Click **Execute Now**.
+
+## 🖼️ Verification
+
+Check **Monitoring > Latest Data**. If the system is working, the item `Camera X Stream Status (RTSP)` should show a value of **1 (Online)**, confirming **Data Plane Integrity** and successful recording for that channel.
