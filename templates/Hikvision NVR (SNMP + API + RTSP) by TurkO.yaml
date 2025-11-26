@@ -1,1 +1,261 @@
-
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: 62ccbdad40514a86bd8af2039ddf23de
+      template: 'Template Hikvision NVR Hybrid'
+      name: 'Template Hikvision NVR (SNMP + API + RTSP) by TurkO'
+      description: |
+        Hikvision NVR monitorinqi.
+        1. SNMP: CPU, RAM, Disk.
+        2. API: Kamera statusları (Online/Offline).
+        3. RTSP: Həqiqi video axını (Video Loss).
+        
+        Makrolar:
+        {$SNMP_COMMUNITY} = hikvision-zabbix
+        {$HIKVISION.API.USER} = admin
+        {$HIKVISION.API.PASSWORD} = SizinParol
+      groups:
+        - name: Templates
+      items:
+        - uuid: a1b2c3d4e5f640008000000000000001
+          name: 'CPU Frequency'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.50001.1.201.0
+          key: hikCPUFreq
+          delay: 5m
+          history: 90d
+          units: Hz
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - MHZ
+                - ''
+            - type: MULTIPLIER
+              parameters:
+                - '1000000'
+          tags:
+            - tag: Application
+              value: CPU
+        - uuid: a1b2c3d4e5f640008000000000000002
+          name: 'Device Status (SNMP)'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.50001.1.230.0
+          key: hikDeviceStatus
+          history: 90d
+          valuemap:
+            name: 'Hikvision online status'
+          tags:
+            - tag: Application
+              value: Health
+          triggers:
+            - uuid: b1b2c3d4e5f640008000000000000001
+              expression: 'last(/Template Hikvision NVR Hybrid/hikDeviceStatus)<>1'
+              name: 'Device Status is NOT Healthy'
+              priority: AVERAGE
+        - uuid: a1b2c3d4e5f640008000000000000003
+          name: 'Total RAM'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.50001.1.220.0
+          key: hikMemoryCapability
+          delay: 1h
+          history: 90d
+          units: b
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '1000000'
+          tags:
+            - tag: Application
+              value: Memory
+        - uuid: a1b2c3d4e5f640008000000000000004
+          name: 'Memory Usage'
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.4.1.50001.1.221.0
+          key: hikMemoryUsage
+          history: 90d
+          value_type: FLOAT
+          units: '%'
+          tags:
+            - tag: Application
+              value: Memory
+        - uuid: a1b2c3d4e5f640008000000000000008
+          name: 'Cameras: Total Online'
+          type: DEPENDENT
+          key: hikvision.api.cameras.online
+          preprocessing:
+            - type: XMLPATH
+              parameters:
+                - 'count(//*[local-name()="InputProxyChannelStatus"][*[local-name()="online"]="true"])'
+          master_item:
+            key: hikvision.api.get_channels
+          tags:
+            - tag: Application
+              value: Camera_Stats
+        - uuid: a1b2c3d4e5f640008000000000000007
+          name: 'Cameras: Total Configured'
+          type: DEPENDENT
+          key: hikvision.api.cameras.total
+          preprocessing:
+            - type: XMLPATH
+              parameters:
+                - 'count(//*[local-name()="InputProxyChannelStatus"])'
+          master_item:
+            key: hikvision.api.get_channels
+          tags:
+            - tag: Application
+              value: Camera_Stats
+        - uuid: a1b2c3d4e5f640008000000000000006
+          name: 'Hikvision API: Get Channels XML'
+          type: HTTP_AGENT
+          key: hikvision.api.get_channels
+          history: 1d
+          value_type: TEXT
+          authtype: DIGEST
+          username: '{$HIKVISION.API.USER}'
+          password: '{$HIKVISION.API.PASSWORD}'
+          url: 'http://{HOST.CONN}/ISAPI/ContentMgmt/InputProxy/channels/status'
+          tags:
+            - tag: Application
+              value: API
+        - uuid: a1b2c3d4e5f640008000000000000005
+          name: Uptime
+          type: SNMP_AGENT
+          snmp_oid: 1.3.6.1.2.1.1.3.0
+          key: sysUpTime
+          delay: 5m
+          history: 7d
+          value_type: FLOAT
+          units: uptime
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '0.01'
+          tags:
+            - tag: Application
+              value: General
+      discovery_rules:
+        - uuid: c1b2c3d4e5f640008000000000000001
+          name: 'Disk Discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#DISKID},1.3.6.1.4.1.50001.1.241.1.1]'
+          key: hikDiskVolume
+          delay: 1h
+          item_prototypes:
+            - uuid: d1b2c3d4e5f640008000000000000002
+              name: 'HDD Free Space: Drive {#DISKID}'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.50001.1.241.1.4.{#DISKID}.0'
+              key: 'hikDiskFreeSpace[{#DISKID}]'
+              units: b
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '1048576'
+              tags:
+                - tag: Application
+                  value: Disk
+            - uuid: d1b2c3d4e5f640008000000000000001
+              name: 'HDD Status: Drive {#DISKID}'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.50001.1.241.1.3.{#DISKID}.0'
+              key: 'hikDiskStatus[{#DISKID}]'
+              history: 30d
+              valuemap:
+                name: 'Hikvision HDD state mapping'
+              tags:
+                - tag: Application
+                  value: Disk
+              trigger_prototypes:
+                - uuid: e1b2c3d4e5f640008000000000000001
+                  expression: 'last(/Template Hikvision NVR Hybrid/hikDiskStatus[{#DISKID}])>0'
+                  name: 'HDD Error on Drive {#DISKID}'
+                  priority: HIGH
+        - uuid: c1b2c3d4e5f640008000000000000002
+          name: 'Camera Discovery'
+          type: DEPENDENT
+          key: hikvision.api.camera_discovery
+          item_prototypes:
+            - uuid: d1b2c3d4e5f640008000000000000003
+              name: 'Camera {#CAM_ID} ({#CAM_IP}): Online Status (API)'
+              type: DEPENDENT
+              key: 'hikvision.camera.status[{#CAM_ID}]'
+              valuemap:
+                name: 'Hikvision Camera Online'
+              preprocessing:
+                - type: XMLPATH
+                  parameters:
+                    - 'string(//*[local-name()="InputProxyChannelStatus"][*[local-name()="id"]="{#CAM_ID}"]/*[local-name()="online"])'
+                - type: BOOL_TO_DECIMAL
+              master_item:
+                key: hikvision.api.get_channels
+              tags:
+                - tag: Application
+                  value: Cameras
+              trigger_prototypes:
+                - uuid: e1b2c3d4e5f640008000000000000002
+                  expression: 'last(/Template Hikvision NVR Hybrid/hikvision.camera.status[{#CAM_ID}])=0'
+                  name: 'Camera {#CAM_ID} ({#CAM_IP}) is OFFLINE (API)'
+                  priority: HIGH
+            - uuid: d1b2c3d4e5f640008000000000000004
+              name: 'Camera {#CAM_ID} Stream Status (RTSP)'
+              type: EXTERNAL
+              key: 'rtsp_check.sh[{HOST.CONN},{$HIKVISION.API.USER},{$HIKVISION.API.PASSWORD},{#CAM_ID}]'
+              delay: 180m
+              history: 7d
+              valuemap:
+                name: 'Hikvision Camera Online'
+              tags:
+                - tag: Application
+                  value: Video_Stream
+              trigger_prototypes:
+                - uuid: e1b2c3d4e5f640008000000000000003
+                  expression: 'max(/Template Hikvision NVR Hybrid/rtsp_check.sh[{HOST.CONN},{$HIKVISION.API.USER},{$HIKVISION.API.PASSWORD},{#CAM_ID}],#3)=0'
+                  name: 'Camera {#CAM_ID} Video Loss (No Stream)'
+                  priority: DISASTER
+                  description: 'API Online gosterir, amma RTSP axini gelmir (Yazmir!).'
+          master_item:
+            key: hikvision.api.get_channels
+          preprocessing:
+            - type: XML_TO_JSON
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var output = [];
+                  try {
+                      var channels = data.InputProxyChannelStatusList.InputProxyChannelStatus;
+                      if (!Array.isArray(channels)) { channels = [channels]; }
+                      channels.forEach(function(channel) {
+                          output.push({"{#CAM_ID}": channel.id, "{#CAM_IP}": channel.sourceInputPortDescriptor.ipAddress});
+                      });
+                  } catch (e) {}
+                  return JSON.stringify(output);
+      valuemaps:
+        - uuid: f1b2c3d4e5f640008000000000000003
+          name: 'Hikvision Camera Online'
+          mappings:
+            - value: '0'
+              newvalue: Offline
+            - value: '1'
+              newvalue: Online
+        - uuid: f1b2c3d4e5f640008000000000000001
+          name: 'Hikvision HDD state mapping'
+          mappings:
+            - value: '0'
+              newvalue: Normal
+            - value: '1'
+              newvalue: Unformatted
+            - value: '2'
+              newvalue: Abnormal
+            - value: '3'
+              newvalue: Smartfailed
+        - uuid: f1b2c3d4e5f640008000000000000002
+          name: 'Hikvision online status'
+          mappings:
+            - value: '1'
+              newvalue: Online
+            - value: '2'
+              newvalue: Absent
