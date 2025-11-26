@@ -20,7 +20,7 @@ The primary functionality relies on the `rtsp_check.sh` script, which uses `ffpr
    ```bash
    sudo apt update
    sudo apt install ffmpeg # ffprobe is included here
-````
+   ````
 
 2.  **Create and Populate the Script:**
     Create the script file at the Zabbix external scripts directory: `/usr/lib/zabbix/externalscripts/rtsp_check.sh`.
